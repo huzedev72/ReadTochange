@@ -1,0 +1,49 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing & Coverage
+/coverage
+
+# Next.js build output
+/.next/
+/out/
+
+# Build artifacts
+build
+dist
+tsconfig.tsbuildinfo
+
+# Environment variables
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+/prisma/*.db
+/prisma/*.db-journal
+dev.db
+dev.db-journal
+
+# Local Tunnel & Executables
+cloudflared.exe
+*.exe
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Design Archive & Raw Prototype Extraction Dumps
+/archive/
+*.html
+*.pdf
+!public/**/*.html
