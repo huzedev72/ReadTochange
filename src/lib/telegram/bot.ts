@@ -21,10 +21,17 @@ export const T1_GOALS = [
 ];
 
 export function getAppUrl(path = ""): string {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-    "https://t.me/ReadToChangeBot/app";
+  let base = process.env.NEXT_PUBLIC_APP_URL || "";
+
+  // In production / on Vercel, ignore any leftover local tunnel URLs
+  if (base.includes("trycloudflare.com") || base.includes("localtunnel.me") || !base) {
+    if (process.env.VERCEL_URL) {
+      base = `https://${process.env.VERCEL_URL}`;
+    } else {
+      base = "https://readtochange.vercel.app";
+    }
+  }
+
   if (!path) return base;
   return `${base}${path.startsWith("?") ? path : "/" + path}`;
 }
