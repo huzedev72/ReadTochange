@@ -35,6 +35,7 @@ import {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState<boolean>(true);
+  const [isHydrated, setIsHydrated] = useState<boolean>(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(true);
   const [currentTab, setCurrentTab] = useState<NavTab>("home");
   const [activeBook, setActiveBook] = useState<Book | null>(null);
@@ -95,101 +96,107 @@ export default function App() {
   // Hydrate user from Backend & Telegram URL parameters
   useEffect(() => {
     async function initUser() {
-      // 1. Check if goals were passed in URL (from Telegram Bot "Show me my books →")
-      let urlGoals: string[] = [];
-      if (typeof window !== "undefined") {
-        try {
-          const params = new URLSearchParams(window.location.search);
-          const goalsParam = params.get("goals");
-          if (goalsParam) {
-            urlGoals = goalsParam
-              .split(",")
-              .map((g) => g.trim().toLowerCase())
-              .filter(Boolean);
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-
-      const sync = await syncUserData();
-
-      // 2. Hydrate clean real state from database FIRST
-      if (sync) {
-        if (sync.user) {
-          setDailyTarget(sync.user.dailyTarget ?? 15);
-          setReminderTime(sync.user.reminderTime ?? "20:30");
-          setStreakDays(sync.user.streakDays ?? 0);
-        }
-
-        if (sync.activeBook) {
-          setActiveBook(sync.activeBook);
-        } else {
-          setActiveBook(null);
-        }
-
-        setReadingBooks(sync.readingBooks ?? []);
-        setSavedBookIds(sync.savedBookIds ?? []);
-        setSavedBooks(sync.savedBooks ?? []);
-        setFinishedBookIds(sync.finishedBookIds ?? []);
-        setFinishedBooks(sync.finishedBooks ?? []);
-        setSessions(sync.sessions ?? []);
-
-        const lastWithAction = (sync.sessions ?? []).find((s: any) => s.actionItem);
-        if (lastWithAction?.actionItem) {
-          setLastActionItem(lastWithAction.actionItem);
-        }
-
-        if (sync.actions && sync.actions.length > 0) {
-          const completedActions = sync.actions.filter((a: any) => a.completedAt !== null);
-          const serverCompletedIds = completedActions.map((a: any) => a.id);
-          const serverCompletedDesc = completedActions.map((a: any) => a.description);
-          setCompletedActionIds((prev) => {
-            const merged = Array.from(new Set([...prev, ...serverCompletedIds, ...serverCompletedDesc]));
-            if (typeof window !== "undefined") {
-              localStorage.setItem("readtochange_completed_actions", JSON.stringify(merged));
+      try {
+        // 1. Check if goals were passed in URL (from Telegram Bot "Show me my books →")
+        let urlGoals: string[] = [];
+        if (typeof window !== "undefined") {
+          try {
+            const params = new URLSearchParams(window.location.search);
+            const goalsParam = params.get("goals");
+            if (goalsParam) {
+              urlGoals = goalsParam
+                .split(",")
+                .map((g) => g.trim().toLowerCase())
+                .filter(Boolean);
             }
-            return merged;
-          });
+          } catch (e) {
+            // ignore
+          }
         }
-      }
 
-      // 3. Determine Onboarding & Initial Tab:
-      // If user has an active book in DB, they are active -> ALWAYS start on Home tab!
-      const hasActiveBook = Boolean(sync?.activeBook || (sync?.readingBooks && sync.readingBooks.length > 0));
+        const sync = await syncUserData();
 
-      if (urlGoals.length > 0) {
-        setHasCompletedOnboarding(true);
-        setSelectedGoalIds(urlGoals);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("readtochange_onboarded", "true");
+        // 2. Hydrate clean real state from database FIRST
+        if (sync) {
+          if (sync.user) {
+            setDailyTarget(sync.user.dailyTarget ?? 15);
+            setReminderTime(sync.user.reminderTime ?? "20:30");
+            setStreakDays(sync.user.streakDays ?? 0);
+          }
+
+          if (sync.activeBook) {
+            setActiveBook(sync.activeBook);
+          } else {
+            setActiveBook(null);
+          }
+
+          setReadingBooks(sync.readingBooks ?? []);
+          setSavedBookIds(sync.savedBookIds ?? []);
+          setSavedBooks(sync.savedBooks ?? []);
+          setFinishedBookIds(sync.finishedBookIds ?? []);
+          setFinishedBooks(sync.finishedBooks ?? []);
+          setSessions(sync.sessions ?? []);
+
+          const lastWithAction = (sync.sessions ?? []).find((s: any) => s.actionItem);
+          if (lastWithAction?.actionItem) {
+            setLastActionItem(lastWithAction.actionItem);
+          }
+
+          if (sync.actions && sync.actions.length > 0) {
+            const completedActions = sync.actions.filter((a: any) => a.completedAt !== null);
+            const serverCompletedIds = completedActions.map((a: any) => a.id);
+            const serverCompletedDesc = completedActions.map((a: any) => a.description);
+            setCompletedActionIds((prev) => {
+              const merged = Array.from(new Set([...prev, ...serverCompletedIds, ...serverCompletedDesc]));
+              if (typeof window !== "undefined") {
+                localStorage.setItem("readtochange_completed_actions", JSON.stringify(merged));
+              }
+              return merged;
+            });
+          }
         }
-        saveUserSettings({ selectedGoalIds: urlGoals });
-        loadDiscoveryBooks(urlGoals);
-        if (!hasActiveBook) {
-          setCurrentTab("discover");
-        } else {
+
+        // 3. Determine Onboarding & Initial Tab:
+        // If user has an active book in DB, they are active -> ALWAYS start on Home tab!
+        const hasActiveBook = Boolean(sync?.activeBook || (sync?.readingBooks && sync.readingBooks.length > 0));
+
+        if (urlGoals.length > 0) {
+          setHasCompletedOnboarding(true);
+          setSelectedGoalIds(urlGoals);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("readtochange_onboarded", "true");
+          }
+          saveUserSettings({ selectedGoalIds: urlGoals });
+          loadDiscoveryBooks(urlGoals);
+          if (!hasActiveBook) {
+            setCurrentTab("discover");
+          } else {
+            setCurrentTab("home");
+          }
+        } else if (sync?.selectedGoalIds && sync.selectedGoalIds.length > 0) {
+          setHasCompletedOnboarding(true);
+          setSelectedGoalIds(sync.selectedGoalIds);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("readtochange_onboarded", "true");
+          }
+          loadDiscoveryBooks(sync.selectedGoalIds);
           setCurrentTab("home");
+        } else if (hasActiveBook) {
+          setHasCompletedOnboarding(true);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("readtochange_onboarded", "true");
+          }
+          setCurrentTab("home");
+        } else {
+          const onboarded = typeof window !== "undefined" ? localStorage.getItem("readtochange_onboarded") : null;
+          if (!onboarded) {
+            setHasCompletedOnboarding(false);
+          }
         }
-      } else if (sync?.selectedGoalIds && sync.selectedGoalIds.length > 0) {
-        setHasCompletedOnboarding(true);
-        setSelectedGoalIds(sync.selectedGoalIds);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("readtochange_onboarded", "true");
-        }
-        loadDiscoveryBooks(sync.selectedGoalIds);
-        setCurrentTab("home");
-      } else if (hasActiveBook) {
-        setHasCompletedOnboarding(true);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("readtochange_onboarded", "true");
-        }
-        setCurrentTab("home");
-      } else {
-        const onboarded = typeof window !== "undefined" ? localStorage.getItem("readtochange_onboarded") : null;
-        if (!onboarded) {
-          setHasCompletedOnboarding(false);
-        }
+      } catch (err) {
+        console.error("Error during initUser:", err);
+      } finally {
+        setIsHydrated(true);
       }
     }
 
@@ -545,7 +552,7 @@ export default function App() {
   return (
     <main className="w-full min-h-[100dvh] bg-[#0A0A0A] flex justify-center items-center">
       {/* 1. Motion Spec Splash Screen (plays on app launch) */}
-      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} isReady={isHydrated} />}
 
       {/* 2. Mobile-First Phone Container */}
       <div className="relative w-full max-w-[420px] h-[100dvh] bg-[#0E0E0E] text-white overflow-hidden shadow-2xl flex flex-col">

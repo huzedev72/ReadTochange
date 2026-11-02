@@ -3,9 +3,49 @@
  * Automatically attaches Telegram WebApp initData header.
  */
 
-function getAuthHeader(): Record<string, string> {
-  if (typeof window !== "undefined") {
+export async function waitForTelegramInitData(maxWaitMs = 1500): Promise<string> {
+  if (typeof window === "undefined") return "";
+
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
     const initData = (window as any).Telegram?.WebApp?.initData;
+    if (initData && typeof initData === "string" && initData.trim() !== "") {
+      return initData;
+    }
+
+    // Check Telegram hash fallback (#tgWebAppData=...)
+    if (window.location.hash) {
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const fromHash = hashParams.get("tgWebAppData");
+        if (fromHash && fromHash.trim() !== "") {
+          return fromHash;
+        }
+      } catch (e) {}
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  let finalData = (window as any).Telegram?.WebApp?.initData || "";
+  if (!finalData && typeof window !== "undefined" && window.location.hash) {
+    try {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      finalData = hashParams.get("tgWebAppData") || "";
+    } catch (e) {}
+  }
+  return finalData;
+}
+
+export function getAuthHeader(): Record<string, string> {
+  if (typeof window !== "undefined") {
+    let initData = (window as any).Telegram?.WebApp?.initData;
+    if (!initData && window.location.hash) {
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        initData = hashParams.get("tgWebAppData") || "";
+      } catch (e) {}
+    }
     if (initData) {
       return { "x-telegram-init-data": initData };
     }
@@ -42,11 +82,13 @@ export interface SyncResponse {
 
 export async function syncUserData(): Promise<SyncResponse | null> {
   try {
-    const res = await fetch("/api/user/sync", {
-      headers: {
-        ...getAuthHeader(),
-      },
-    });
+    // Gracefully ensure Telegram WebApp initData is ready before dispatching sync
+    const initData = await waitForTelegramInitData(1500);
+    const headers: Record<string, string> = initData
+      ? { "x-telegram-init-data": initData }
+      : getAuthHeader();
+
+    const res = await fetch("/api/user/sync", { headers });
     if (!res.ok) throw new Error("Sync failed");
     return await res.json();
   } catch (err) {

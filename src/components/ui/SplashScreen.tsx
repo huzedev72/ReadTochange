@@ -3,19 +3,39 @@ import { cn } from "@/lib/utils";
 
 interface SplashScreenProps {
   onComplete: () => void;
+  isReady?: boolean;
 }
 
-export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
+export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete, isReady = true }) => {
   const [fadingOut, setFadingOut] = useState(false);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
   useEffect(() => {
-    // 1.1s total presentation matching the motion spec
+    // 1.0s minimum presentation matching the motion spec
     const timer = setTimeout(() => {
-      setFadingOut(true);
-      setTimeout(onComplete, 250);
-    }, 1100);
+      setMinTimeElapsed(true);
+    }, 1000);
 
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    // Fade out when both minimum motion time elapsed AND data is ready
+    if (minTimeElapsed && isReady) {
+      setFadingOut(true);
+      const timer = setTimeout(onComplete, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [minTimeElapsed, isReady, onComplete]);
+
+  // Safety fallback: never hold splash longer than 3.5s under any condition
+  useEffect(() => {
+    const safety = setTimeout(() => {
+      setFadingOut(true);
+      setTimeout(onComplete, 200);
+    }, 3500);
+
+    return () => clearTimeout(safety);
   }, [onComplete]);
 
   return (
