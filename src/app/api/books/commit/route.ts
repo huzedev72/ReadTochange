@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { bookId, status = "READING", dailyTarget } = body;
+    const { bookId, status = "READING", dailyTarget, currentPage } = body;
 
     if (!bookId) {
       return NextResponse.json(
@@ -32,13 +32,32 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify book exists
-    const book = await prisma.book.findUnique({
+    // Verify book exists, or auto-create if metadata was provided
+    let book = await prisma.book.findUnique({
       where: { id: bookId },
     });
 
     if (!book) {
-      return NextResponse.json({ error: "Book not found" }, { status: 404 });
+      if (body.title) {
+        book = await prisma.book.create({
+          data: {
+            id: bookId,
+            title: body.title,
+            author: body.author || "Unknown Author",
+            totalPages: body.totalPages ? parseInt(String(body.totalPages), 10) : 250,
+            coverUrl: body.coverUrl || null,
+            growthCategory: body.growthCategory || "Personal Growth",
+            aiHook: body.aiHook || `Read ${body.title} to transform your life.`,
+            whyThisBook: body.whyThisBook || "A high-impact book for your personal growth.",
+            mascotTake: body.mascotTake || "Show up every day and apply what you learn.",
+            summary: body.summary || `Read ${body.title}.`,
+            keyIdeasJson: JSON.stringify(body.keyIdeas || []),
+            isCustom: false,
+          },
+        });
+      } else {
+        return NextResponse.json({ error: "Book not found" }, { status: 404 });
+      }
     }
 
     // Handle Unsave / Remove from saved
@@ -189,13 +208,14 @@ export async function POST(req: Request) {
       },
       update: {
         status,
+        ...(typeof currentPage === "number" ? { currentPage } : {}),
         ...(status === "FINISHED" ? { finishedAt: new Date() } : {}),
       },
       create: {
         userId: user.id,
         bookId,
         status,
-        currentPage: 0,
+        currentPage: typeof currentPage === "number" ? currentPage : 0,
         startedAt: new Date(),
         ...(status === "FINISHED" ? { finishedAt: new Date() } : {}),
       },

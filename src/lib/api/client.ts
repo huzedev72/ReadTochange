@@ -108,6 +108,17 @@ export async function commitActiveBook(payload: {
   bookId: string;
   status?: "READING" | "WANT_TO_READ" | "FINISHED" | "UNSAVED" | "SET_FOCUS" | "PAUSED" | "PAUSE";
   dailyTarget?: number;
+  currentPage?: number;
+  title?: string;
+  author?: string;
+  totalPages?: number;
+  coverUrl?: string;
+  growthCategory?: string;
+  aiHook?: string;
+  whyThisBook?: string;
+  mascotTake?: string;
+  summary?: string;
+  keyIdeas?: string[];
 }) {
   try {
     const res = await fetch("/api/books/commit", {

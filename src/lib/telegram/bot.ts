@@ -118,6 +118,10 @@ if (bot) {
         },
         include: {
           userGoals: true,
+          userBooks: {
+            where: { status: "READING" },
+            include: { book: true },
+          },
         },
       });
     } catch (e) {
@@ -134,7 +138,7 @@ if (bot) {
             chat_id: ctx.chat.id,
             menu_button: {
               type: "web_app",
-              text: "Read",
+              text: "Open ReadToChange 📖",
               web_app: { url: appUrl },
             },
           });
@@ -142,6 +146,38 @@ if (bot) {
       } catch (e) {
         // Safe fallback if bot has restricted permissions
       }
+    }
+
+    // If user is returning and already has an active reading book, greet with their active progress!
+    const readingBook =
+      user?.userBooks?.find((ub) => ub.bookId === user.activeBookId)?.book ||
+      user?.userBooks?.[0]?.book;
+
+    if (readingBook) {
+      const streak = user?.streakDays || 0;
+      const returningHtml =
+        `<b>Welcome back, ${escapeHtml(firstName)}! 🔥</b>\n\n` +
+        `📖 <b>Current Book:</b> ${escapeHtml(readingBook.title)}\n` +
+        `🎯 <b>Daily Target:</b> ${user?.dailyTarget || 15} min / day\n` +
+        `⚡ <b>Streak:</b> ${streak} day${streak === 1 ? "" : "s"}\n\n` +
+        `Ready for today's reading session?`;
+
+      const kb = new InlineKeyboard()
+        .webApp("Continue Reading 📖", appUrl)
+        .row()
+        .text("Change Goals 🎯", "show_goal_picker");
+
+      const stickerPath = path.resolve(process.cwd(), "public", "stickers", "mascot_happy.webp");
+      if (fs.existsSync(stickerPath)) {
+        try {
+          await ctx.replyWithSticker(new InputFile(stickerPath));
+        } catch (e) {}
+      }
+
+      return ctx.reply(returningHtml, {
+        parse_mode: "HTML",
+        reply_markup: kb,
+      });
     }
 
     const currentGoals = user?.userGoals ? user.userGoals.map((ug) => ug.goalId) : ["discipline", "communication"];
@@ -165,6 +201,24 @@ if (bot) {
       parse_mode: "HTML",
       reply_markup: keyboard,
     });
+  });
+
+  bot.callbackQuery("show_goal_picker", async (ctx) => {
+    const telegramId = String(ctx.from?.id);
+    const appUrl = getAppUrl();
+    try {
+      const user = await prisma.user.findUnique({
+        where: { telegramId },
+        include: { userGoals: true },
+      });
+      const currentGoals = user?.userGoals ? user.userGoals.map((ug) => ug.goalId) : ["discipline", "communication"];
+      const keyboard = buildGoalKeyboard(currentGoals, appUrl);
+      await ctx.reply("Select your personal growth goals (up to 3):", {
+        reply_markup: keyboard,
+      });
+    } catch (e) {
+      console.error("show_goal_picker error:", e);
+    }
   });
 
   // T1 Interactive Goal Toggle Callback

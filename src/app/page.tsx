@@ -114,32 +114,7 @@ export default function App() {
 
       const sync = await syncUserData();
 
-      // 2. Determine Onboarding Status:
-      // If goals came from Telegram URL or database, user has ALREADY onboarded!
-      if (urlGoals.length > 0) {
-        setHasCompletedOnboarding(true);
-        setSelectedGoalIds(urlGoals);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("readtochange_onboarded", "true");
-        }
-        saveUserSettings({ selectedGoalIds: urlGoals });
-        loadDiscoveryBooks(urlGoals);
-        setCurrentTab("discover");
-      } else if (sync?.selectedGoalIds && sync.selectedGoalIds.length > 0) {
-        setHasCompletedOnboarding(true);
-        setSelectedGoalIds(sync.selectedGoalIds);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("readtochange_onboarded", "true");
-        }
-        loadDiscoveryBooks(sync.selectedGoalIds);
-      } else {
-        const onboarded = typeof window !== "undefined" ? localStorage.getItem("readtochange_onboarded") : null;
-        if (!onboarded) {
-          setHasCompletedOnboarding(false);
-        }
-      }
-
-      // 3. Hydrate clean real state from database
+      // 2. Hydrate clean real state from database FIRST
       if (sync) {
         if (sync.user) {
           setDailyTarget(sync.user.dailyTarget ?? 15);
@@ -147,7 +122,12 @@ export default function App() {
           setStreakDays(sync.user.streakDays ?? 0);
         }
 
-        setActiveBook(sync.activeBook ?? null);
+        if (sync.activeBook) {
+          setActiveBook(sync.activeBook);
+        } else {
+          setActiveBook(null);
+        }
+
         setReadingBooks(sync.readingBooks ?? []);
         setSavedBookIds(sync.savedBookIds ?? []);
         setSavedBooks(sync.savedBooks ?? []);
@@ -171,6 +151,44 @@ export default function App() {
             }
             return merged;
           });
+        }
+      }
+
+      // 3. Determine Onboarding & Initial Tab:
+      // If user has an active book in DB, they are active -> ALWAYS start on Home tab!
+      const hasActiveBook = Boolean(sync?.activeBook || (sync?.readingBooks && sync.readingBooks.length > 0));
+
+      if (urlGoals.length > 0) {
+        setHasCompletedOnboarding(true);
+        setSelectedGoalIds(urlGoals);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("readtochange_onboarded", "true");
+        }
+        saveUserSettings({ selectedGoalIds: urlGoals });
+        loadDiscoveryBooks(urlGoals);
+        if (!hasActiveBook) {
+          setCurrentTab("discover");
+        } else {
+          setCurrentTab("home");
+        }
+      } else if (sync?.selectedGoalIds && sync.selectedGoalIds.length > 0) {
+        setHasCompletedOnboarding(true);
+        setSelectedGoalIds(sync.selectedGoalIds);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("readtochange_onboarded", "true");
+        }
+        loadDiscoveryBooks(sync.selectedGoalIds);
+        setCurrentTab("home");
+      } else if (hasActiveBook) {
+        setHasCompletedOnboarding(true);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("readtochange_onboarded", "true");
+        }
+        setCurrentTab("home");
+      } else {
+        const onboarded = typeof window !== "undefined" ? localStorage.getItem("readtochange_onboarded") : null;
+        if (!onboarded) {
+          setHasCompletedOnboarding(false);
         }
       }
     }
@@ -350,8 +368,21 @@ export default function App() {
         bookId: bookToCommit.id,
         status: "READING",
         dailyTarget: minutes,
+        title: bookToCommit.title,
+        author: bookToCommit.author,
+        totalPages: bookToCommit.totalPages,
+        coverUrl: bookToCommit.coverUrl,
+        growthCategory: bookToCommit.growthCategory,
+        aiHook: bookToCommit.aiHook,
+        whyThisBook: bookToCommit.whyThisBook,
+        mascotTake: bookToCommit.mascotTake,
+        summary: bookToCommit.summary,
+        keyIdeas: bookToCommit.keyIdeas,
       });
 
+      if (res && res.book) {
+        setActiveBook(res.book);
+      }
       if (res && res.maxReached) {
         setPauseCandidateBook(bookToCommit);
       }
@@ -361,27 +392,10 @@ export default function App() {
 
   const handleTrackOwnBook = async (newBook: Book, startingPage: number) => {
     hapticSuccess();
-    setActiveBook(newBook);
-    if (!savedBookIds.includes(newBook.id)) {
-      setSavedBookIds([newBook.id, ...savedBookIds]);
-    }
-    if (startingPage > 1) {
-      const initialProgressSession: ReadingSession = {
-        id: `s-initial-${Date.now()}`,
-        bookId: newBook.id,
-        bookTitle: newBook.title,
-        durationMinutes: 0,
-        pagesRead: startingPage,
-        takeaway: "Carried over from personal physical reading progress.",
-        reflectionQuestion: "What stood out so far?",
-        actionItem: "Continue daily reading streak.",
-        createdAt: "Started earlier",
-      };
-      setSessions([initialProgressSession, ...sessions]);
-    }
     setCurrentTab("home");
 
-    await trackCustomBook({
+    // Persist custom book to database first so we have its permanent database ID
+    const res = await trackCustomBook({
       title: newBook.title,
       author: newBook.author,
       totalPages: newBook.totalPages,
@@ -391,6 +405,42 @@ export default function App() {
       aiHook: newBook.aiHook,
       whyThisBook: newBook.whyThisBook,
     });
+
+    const realBook: Book = res?.book || newBook;
+    setActiveBook(realBook);
+    setReadingBooks((prev) => [realBook, ...prev.filter((b) => b.id !== realBook.id)]);
+    if (!savedBookIds.includes(realBook.id)) {
+      setSavedBookIds((prev) => [realBook.id, ...prev]);
+    }
+
+    if (startingPage > 0) {
+      const initialProgressSession: ReadingSession = {
+        id: `s-initial-${Date.now()}`,
+        bookId: realBook.id,
+        bookTitle: realBook.title,
+        durationMinutes: 0,
+        pagesRead: startingPage,
+        takeaway: "Carried over from personal physical reading progress.",
+        reflectionQuestion: "What stood out so far?",
+        actionItem: "Continue daily reading streak.",
+        createdAt: "Started earlier",
+      };
+      setSessions((prev) => [initialProgressSession, ...prev]);
+
+      // Persist initial reading session to database
+      const sessionRes = await logReadingSession({
+        bookId: realBook.id,
+        durationMinutes: 5,
+        pagesRead: startingPage,
+        takeaway: "Carried over from personal physical reading progress.",
+        reflectionQuestion: "What stood out so far?",
+        actionItem: "Continue daily reading streak.",
+      });
+
+      if (sessionRes?.session && typeof sessionRes.streakDays === "number") {
+        setStreakDays(sessionRes.streakDays);
+      }
+    }
   };
 
   const handleFinishFocusTimer = (minutesSpent: number) => {
