@@ -12,6 +12,8 @@ export interface Book {
   totalPages: number;
   previewUrl?: string; // Google Books web preview or Gutenberg reader
   isPublicDomain?: boolean;
+  isCustom?: boolean;
+  currentPage?: number;
 }
 
 export interface ReadingSession {

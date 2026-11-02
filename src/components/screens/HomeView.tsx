@@ -138,16 +138,45 @@ export const HomeView: React.FC<HomeViewProps> = ({
     );
   }
 
-  // Calculate current book progress
+  // Calculate current book progress based on book.currentPage and sessions
   const currentBookSessions = sessions.filter((s) => s.bookId === activeBook.id);
-  const totalPagesRead = currentBookSessions.reduce(
+  const sessionPagesRead = currentBookSessions.reduce(
     (acc, curr) => acc + curr.pagesRead,
     0
   );
+  const effectivePage = Math.max(
+    typeof activeBook.currentPage === "number" ? activeBook.currentPage : 0,
+    sessionPagesRead
+  );
   const progressPercent = Math.min(
     100,
-    Math.round((totalPagesRead / activeBook.totalPages) * 100) || 26
+    Math.round((effectivePage / Math.max(1, activeBook.totalPages)) * 100)
   );
+
+  // Check if user has read today
+  const hasReadToday = sessions.some((s) => {
+    if (!s.createdAt) return false;
+    const d = new Date(s.createdAt);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  });
+
+  const todayMinutesRead = sessions
+    .filter((s) => {
+      if (!s.createdAt) return false;
+      const d = new Date(s.createdAt);
+      const now = new Date();
+      return (
+        d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate()
+      );
+    })
+    .reduce((sum, s) => sum + s.durationMinutes, 0);
 
   return (
     <div className="relative w-full min-h-[100dvh] bg-[#FFA83A] text-[#0E0E0E] px-6 pt-12 pb-32 flex flex-col select-none overflow-y-auto no-scrollbar">
@@ -177,30 +206,36 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </header>
 
       {/* 2. Headline & Voice */}
-      <div className="mt-5">
-        <h1 className="font-poppins font-extrabold text-[36px] leading-[1.05] tracking-tight text-[#0E0E0E]">
-          What should I do right now?
+      <div className="mt-5 text-left">
+        <h1 className="font-poppins font-extrabold text-[34px] leading-[1.05] tracking-tight text-[#0E0E0E]">
+          {hasReadToday ? "You’re on track today! 🔥" : "What should I do right now?"}
         </h1>
         <p className="mt-2 font-playfair italic font-normal text-[19px] text-[#0E0E0E]">
-          Read {dailyTargetMinutes} minutes. That’s all.
+          {hasReadToday
+            ? `Logged ${todayMinutesRead} min today. Consistency is compounding.`
+            : `Read ${dailyTargetMinutes} minutes. That’s all.`}
         </p>
       </div>
 
       {/* 3. Bento Metrics Row */}
       <div className="grid grid-cols-2 gap-3 mt-5">
         {/* Left: Black Bento Card */}
-        <div className="h-[130px] rounded-[28px] bg-[#0E0E0E] text-white p-4 flex flex-col justify-between shadow-lg">
-          <span className="font-poppins font-extrabold text-[32px] leading-none text-[#FFA83A]">
-            {dailyTargetMinutes}
-            <span className="text-white text-sm font-semibold ml-1">min</span>
-          </span>
+        <div className="h-[130px] rounded-[28px] bg-[#0E0E0E] text-white p-4 flex flex-col justify-between shadow-lg text-left">
+          <div className="flex items-baseline gap-1">
+            <span className="font-poppins font-extrabold text-[32px] leading-none text-[#FFA83A]">
+              {hasReadToday ? todayMinutesRead : dailyTargetMinutes}
+            </span>
+            <span className="text-white text-xs font-semibold">
+              {hasReadToday ? `/${dailyTargetMinutes} min` : "min"}
+            </span>
+          </div>
           <span className="font-poppins font-bold text-xs text-neutral-300">
-            Today’s target
+            {hasReadToday ? "✓ Today's progress" : "Today’s target"}
           </span>
         </div>
 
         {/* Right: White Bento Card */}
-        <div className="h-[130px] rounded-[28px] bg-white text-[#0E0E0E] p-4 flex flex-col justify-between border border-black/5 shadow-lg">
+        <div className="h-[130px] rounded-[28px] bg-white text-[#0E0E0E] p-4 flex flex-col justify-between border border-black/5 shadow-lg text-left">
           <span className="font-poppins font-extrabold text-[32px] leading-none text-[#0E0E0E]">
             {daysReadThisWeek}
             <span className="text-neutral-500 text-sm font-semibold ml-1">days</span>
@@ -219,22 +254,27 @@ export const HomeView: React.FC<HomeViewProps> = ({
             "repeating-linear-gradient(135deg, #ffffff 0 6px, #FFEBD0 6px 12px)",
         }}
       >
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-3.5 flex-1 min-w-0 pr-2">
           <BookCover
             title={activeBook.title}
             author={activeBook.author}
             coverUrl={activeBook.coverUrl}
             size="sm"
           />
-          <div className="flex flex-col text-left">
+          <div className="flex flex-col text-left flex-1 min-w-0">
             <span className="font-poppins font-bold text-[10px] tracking-wider uppercase text-neutral-800">
               CURRENTLY READING
             </span>
-            <h3 className="font-poppins font-extrabold text-lg text-[#0E0E0E] leading-tight line-clamp-1">
+            <h3 className="font-poppins font-extrabold text-base text-[#0E0E0E] leading-tight truncate" title={activeBook.title}>
               {activeBook.title}
             </h3>
+            {/* Page number & percentage */}
+            <div className="flex items-center justify-between text-[11px] font-poppins font-extrabold text-[#0E0E0E] mt-2">
+              <span>Page {effectivePage} of {activeBook.totalPages}</span>
+              <span>{progressPercent}%</span>
+            </div>
             {/* Progress track */}
-            <div className="mt-2.5 w-28 h-2 rounded-full bg-white overflow-hidden shadow-inner">
+            <div className="mt-1 w-full h-2 rounded-full bg-white/70 overflow-hidden shadow-inner border border-black/10">
               <div
                 className="h-full bg-[#0E0E0E] rounded-full transition-all duration-500"
                 style={{ width: `${progressPercent}%` }}
@@ -247,7 +287,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <button
           type="button"
           onClick={onLogSession}
-          className="w-13 h-13 rounded-full bg-[#0E0E0E] flex items-center justify-center text-[#FFA83A] shadow-md active:scale-95 transition-all cursor-pointer p-3"
+          className="w-13 h-13 rounded-full bg-[#0E0E0E] flex items-center justify-center text-[#FFA83A] shadow-md active:scale-95 transition-all cursor-pointer p-3 flex-shrink-0 ml-2"
           aria-label="Log reading session"
           title="Log session"
         >
@@ -256,7 +296,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </div>
 
       {/* 5. Signature -1.5° Tilted "YOUR ONE ACTION" Card */}
-      <div className="mt-3.5 rounded-[28px] bg-[#0E0E0E] text-white p-5 -rotate-[1.5deg] hover:rotate-0 transition-transform shadow-xl">
+      <div className="mt-3.5 rounded-[28px] bg-[#0E0E0E] text-white p-5 -rotate-[1.5deg] hover:rotate-0 transition-transform shadow-xl text-left">
         <span className="font-poppins font-bold text-[11px] tracking-widest uppercase text-[#FFA83A] block">
           YOUR ONE ACTION
         </span>
@@ -280,9 +320,43 @@ export const HomeView: React.FC<HomeViewProps> = ({
           onClick={onLogSession}
           className="col-span-3 h-14 rounded-full bg-[#0E0E0E] text-[#FFA83A] font-poppins font-extrabold text-sm shadow-2xl active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center border-2 border-white/10"
         >
-          <span>Log session →</span>
+          <span>{hasReadToday ? "Log more reading +" : "Log session →"}</span>
         </button>
       </div>
+
+      {/* 7. Recent Sessions Activity */}
+      {sessions.length > 0 && (
+        <div className="mt-4 rounded-[24px] bg-white/80 border border-black/10 p-4 text-left shadow-sm">
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="font-poppins font-bold text-[11px] tracking-wider uppercase text-neutral-700">
+              Recent Sessions
+            </span>
+            <span className="font-poppins font-extrabold text-xs text-[#0E0E0E]">
+              {sessions.length} total
+            </span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {sessions.slice(0, 3).map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center justify-between text-xs bg-black/5 rounded-[16px] px-3.5 py-2.5"
+              >
+                <div className="flex flex-col min-w-0 pr-2">
+                  <span className="font-poppins font-bold text-[#0E0E0E] truncate">
+                    {s.bookTitle}
+                  </span>
+                  <span className="text-[10px] text-neutral-600 font-poppins">
+                    +{s.pagesRead} pages in {s.durationMinutes} min
+                  </span>
+                </div>
+                <span className="text-[10px] font-poppins font-semibold text-neutral-500 flex-shrink-0">
+                  {s.createdAt ? new Date(s.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

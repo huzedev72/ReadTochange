@@ -171,13 +171,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           <div className="flex flex-col gap-4">
             {currentList.map((book) => {
               const bookSessions = sessions.filter((s) => s.bookId === book.id);
-              const totalPages = bookSessions.reduce(
+              const sessionPages = bookSessions.reduce(
                 (acc, curr) => acc + curr.pagesRead,
                 0
               );
+              const effectivePage = Math.max(
+                typeof book.currentPage === "number" ? book.currentPage : 0,
+                sessionPages
+              );
               const progress = Math.min(
                 100,
-                Math.round((totalPages / book.totalPages) * 100) || 15
+                Math.round((effectivePage / Math.max(1, book.totalPages)) * 100)
               );
 
               return (
@@ -216,7 +220,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     </p>
 
                     <div className="mt-3 flex items-center justify-between text-[11px] font-poppins font-bold text-neutral-300">
-                      <span>{bookSessions.length} sessions logged</span>
+                      <span>Page {effectivePage} of {book.totalPages} ({bookSessions.length} logged)</span>
                       <span className="text-[#FFA83A] font-extrabold">{progress}%</span>
                     </div>
 
