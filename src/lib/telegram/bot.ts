@@ -23,15 +23,18 @@ export const T1_GOALS = [
 export function getAppUrl(path = ""): string {
   let base = process.env.NEXT_PUBLIC_APP_URL || "";
 
-  // In production / on Vercel, ignore any leftover local tunnel URLs
-  if (base.includes("trycloudflare.com") || base.includes("localtunnel.me") || !base) {
-    if (process.env.VERCEL_URL) {
-      base = `https://${process.env.VERCEL_URL}`;
-    } else {
-      base = "https://readtochange.vercel.app";
-    }
+  // In production / on Vercel, ignore any leftover local tunnel URLs or deployment-specific hash URLs
+  if (
+    !base ||
+    base.includes("trycloudflare.com") ||
+    base.includes("localtunnel.me") ||
+    base.includes("-huze2.vercel.app") ||
+    base.includes("-projects.vercel.app")
+  ) {
+    base = "https://readtochange.vercel.app";
   }
 
+  base = base.replace(/\/+$/, "");
   if (!path) return base;
   return `${base}${path.startsWith("?") ? path : "/" + path}`;
 }
