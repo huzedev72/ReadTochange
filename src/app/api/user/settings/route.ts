@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
     const telegramId = String(tgUser.id);
     const body = await req.json();
-    const { dailyTarget, reminderTime, selectedGoalIds } = body;
+    const { dailyTarget, reminderTime, selectedGoalIds, timezone, timezoneOffset } = body;
 
     const user = await prisma.user.findUnique({
       where: { telegramId },
@@ -31,6 +31,8 @@ export async function POST(req: Request) {
       data: {
         dailyTarget: typeof dailyTarget === "number" ? dailyTarget : undefined,
         reminderTime: typeof reminderTime === "string" ? reminderTime : undefined,
+        timezone: typeof timezone === "string" && timezone.trim() ? timezone : undefined,
+        timezoneOffset: typeof timezoneOffset === "number" ? timezoneOffset : undefined,
       },
     });
 

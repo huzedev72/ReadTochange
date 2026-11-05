@@ -16,6 +16,7 @@ export async function GET(req: Request) {
     const telegramId = String(tgUser.id);
     const firstName = tgUser.first_name || "Reader";
     const username = tgUser.username || null;
+    const clientTimezone = req.headers.get("x-timezone");
 
     // 1. Upsert User
     const user = await prisma.user.upsert({
@@ -23,6 +24,7 @@ export async function GET(req: Request) {
       update: {
         firstName: firstName || undefined,
         username: username || undefined,
+        timezone: clientTimezone && typeof clientTimezone === "string" ? clientTimezone : undefined,
       },
       create: {
         telegramId,
@@ -30,6 +32,7 @@ export async function GET(req: Request) {
         username,
         dailyTarget: 15,
         reminderTime: "20:30",
+        timezone: clientTimezone && typeof clientTimezone === "string" ? clientTimezone : "UTC",
         streakDays: 0,
       },
       include: {

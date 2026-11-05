@@ -84,9 +84,11 @@ export async function syncUserData(): Promise<SyncResponse | null> {
   try {
     // Gracefully ensure Telegram WebApp initData is ready before dispatching sync
     const initData = await waitForTelegramInitData(1500);
-    const headers: Record<string, string> = initData
-      ? { "x-telegram-init-data": initData }
-      : getAuthHeader();
+    const tz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+    const headers: Record<string, string> = {
+      ...(initData ? { "x-telegram-init-data": initData } : getAuthHeader()),
+      "x-timezone": tz,
+    };
 
     const res = await fetch("/api/user/sync", { headers });
     if (!res.ok) throw new Error("Sync failed");
@@ -101,15 +103,24 @@ export async function saveUserSettings(settings: {
   dailyTarget?: number;
   reminderTime?: string;
   selectedGoalIds?: string[];
+  timezone?: string;
+  timezoneOffset?: number;
 }) {
   try {
+    const tz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+    const tzOffset = typeof Date !== "undefined" ? new Date().getTimezoneOffset() : 0;
+
     const res = await fetch("/api/user/settings", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
       },
-      body: JSON.stringify(settings),
+      body: JSON.stringify({
+        timezone: tz,
+        timezoneOffset: tzOffset,
+        ...settings,
+      }),
     });
     return await res.json();
   } catch (err) {

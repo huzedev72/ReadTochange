@@ -1,0 +1,18 @@
+name: Daily Reading Reminders Dispatcher
+
+on:
+  schedule:
+    # Run every 30 minutes, 24/7
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  dispatch-reminders:
+    name: Dispatch Scheduled Reminders
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping ReadToChange Reminders Endpoint
+        run: |
+          curl -s -f -X GET "https://readtochange.vercel.app/api/cron/reminders?secret=readtochange_local_cron_secret_2026" \
+            -H "Authorization: Bearer readtochange_local_cron_secret_2026" \
+            -H "User-Agent: GitHub-Actions-Cron"

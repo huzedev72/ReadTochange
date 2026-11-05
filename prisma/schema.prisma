@@ -20,6 +20,10 @@ model User {
   lastName        String?
   dailyTarget     Int              @default(15) // Minutes per day (10, 15, 20, 30)
   reminderTime    String           @default("20:30") // HH:mm format
+  timezone        String           @default("UTC")
+  timezoneOffset  Int              @default(0)
+  lastReminderDate String?
+  snoozedUntil    DateTime?
   streakDays      Int              @default(0)
   lastReadAt      DateTime?
   activeBookId    String?

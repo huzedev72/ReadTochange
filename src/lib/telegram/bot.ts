@@ -1,5 +1,6 @@
 import { Bot, InlineKeyboard, InputFile } from "grammy";
 import { prisma } from "@/lib/db";
+import { sendMascotSticker } from "./stickers";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -167,12 +168,7 @@ if (bot) {
         .row()
         .text("Change Goals 🎯", "show_goal_picker");
 
-      const stickerPath = path.resolve(process.cwd(), "public", "stickers", "mascot_happy.webp");
-      if (fs.existsSync(stickerPath)) {
-        try {
-          await ctx.replyWithSticker(new InputFile(stickerPath));
-        } catch (e) {}
-      }
+      await sendMascotSticker(bot, ctx.chat?.id || telegramId, "mascot_happy.webp", appUrl);
 
       return ctx.reply(returningHtml, {
         parse_mode: "HTML",
@@ -187,15 +183,7 @@ if (bot) {
       `Books are the input. Change is the outcome.\n\n` +
       `What do you want to improve? Pick up to 3.`;
 
-    const stickerPath = path.resolve(process.cwd(), "public", "stickers", "mascot_happy.webp");
-    if (fs.existsSync(stickerPath)) {
-      try {
-        // Send the Happy mascot sticker (Welcome)
-        await ctx.replyWithSticker(new InputFile(stickerPath));
-      } catch (e) {
-        console.error("replyWithSticker error:", e);
-      }
-    }
+    await sendMascotSticker(bot, ctx.chat?.id || telegramId, "mascot_happy.webp", appUrl);
 
     await ctx.reply(welcomeHtml, {
       parse_mode: "HTML",
@@ -299,8 +287,20 @@ if (bot) {
     }
   });
 
-  // T2 Snooze Callback
+  // T2 Snooze Callback (Saves snoozedUntil in database)
   bot.callbackQuery("snooze:30", async (ctx) => {
+    const telegramId = String(ctx.from?.id);
+    const snoozedUntil = new Date(Date.now() + 30 * 60 * 1000);
+
+    try {
+      await prisma.user.updateMany({
+        where: { telegramId },
+        data: { snoozedUntil },
+      });
+    } catch (e) {
+      console.error("Error setting snooze in DB:", e);
+    }
+
     await ctx.answerCallbackQuery({ text: "Snoozed for 30 min!" });
     await ctx.reply("⏰ *Snoozed for 30 minutes.* We’ll ping you then to keep your reading flame burning!", {
       parse_mode: "Markdown",
@@ -332,7 +332,7 @@ if (bot) {
     try {
       await prisma.user.updateMany({
         where: { telegramId },
-        data: { reminderTime: chosenTime },
+        data: { reminderTime: chosenTime, snoozedUntil: null },
       });
       await ctx.answerCallbackQuery({ text: `Reminder set to ${chosenTime}!` });
       await ctx.reply(`✅ Your daily reading reminder is now set to *${chosenTime}*.`, {
@@ -375,12 +375,7 @@ if (bot) {
       }
 
       // Send Proud mascot sticker (Momentum & Streak)
-      const proudStickerPath = path.resolve(process.cwd(), "public", "stickers", "mascot_proud.webp");
-      if (fs.existsSync(proudStickerPath)) {
-        try {
-          await ctx.replyWithSticker(new InputFile(proudStickerPath));
-        } catch (e) {}
-      }
+      await sendMascotSticker(bot, ctx.chat?.id || telegramId, "mascot_proud.webp", appUrl);
 
       await ctx.reply(
         `🔥 *Reading Momentum: ${streak}-Day Flame*\n\n` +
@@ -429,7 +424,6 @@ if (bot) {
   bot.command("remind", async (ctx) => {
     const telegramId = String(ctx.from?.id);
     const appUrl = getAppUrl();
-    const stickerPath = path.resolve(process.cwd(), "public", "stickers", "mascot_curious.webp");
 
     try {
       const user = await prisma.user.findUnique({
@@ -450,14 +444,8 @@ if (bot) {
       const bookTitle = activeBook?.title || "your focus book";
       const dailyTarget = user?.dailyTarget || 15;
 
-      // 1. Send Curious Mascot Sticker (Design System: Curious expression with floating gold '?')
-      if (fs.existsSync(stickerPath)) {
-        try {
-          await ctx.replyWithSticker(new InputFile(stickerPath));
-        } catch (e) {
-          console.error("Mascot sticker error:", e);
-        }
-      }
+      // 1. Send Curious Mascot Sticker
+      await sendMascotSticker(bot, ctx.chat?.id || telegramId, "mascot_curious.webp", appUrl);
 
       // 2. Build Interactive Keyboard
       const kb = new InlineKeyboard();
@@ -563,14 +551,9 @@ if (bot) {
   // /missed - Gentle recovery notification (Screen T3) with Sleepy Mascot Sticker
   bot.command("missed", async (ctx) => {
     const appUrl = getAppUrl();
-    const stickerPath = path.resolve(process.cwd(), "public", "stickers", "mascot_sleepy.webp");
+    const telegramId = String(ctx.from?.id);
 
-    if (fs.existsSync(stickerPath)) {
-      try {
-        // Send Sleepy mascot with gold 'Z z'
-        await ctx.replyWithSticker(new InputFile(stickerPath));
-      } catch (e) {}
-    }
+    await sendMascotSticker(bot, ctx.chat?.id || telegramId, "mascot_sleepy.webp", appUrl);
 
     const kb = new InlineKeyboard();
     const fiveMinUrl = `${appUrl}?action=timer&target=5`;
@@ -604,14 +587,9 @@ if (bot) {
   // /action - Action Item Reminder with Thinking Mascot Sticker
   bot.command("action", async (ctx) => {
     const appUrl = getAppUrl();
-    const stickerPath = path.resolve(process.cwd(), "public", "stickers", "mascot_thinking.webp");
+    const telegramId = String(ctx.from?.id);
 
-    if (fs.existsSync(stickerPath)) {
-      try {
-        // Send Thinking mascot with 3 gold thought bubbles
-        await ctx.replyWithSticker(new InputFile(stickerPath));
-      } catch (e) {}
-    }
+    await sendMascotSticker(bot, ctx.chat?.id || telegramId, "mascot_thinking.webp", appUrl);
 
     const kb = new InlineKeyboard();
     const progressUrl = `${appUrl}?tab=progress`;

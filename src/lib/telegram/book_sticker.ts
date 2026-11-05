@@ -2,6 +2,7 @@ import sharp from "sharp";
 import { Resvg } from "@resvg/resvg-js";
 import * as path from "path";
 import * as fs from "fs";
+import * as os from "os";
 
 export interface BookStickerOptions {
   bookId: string;
@@ -11,15 +12,19 @@ export interface BookStickerOptions {
 }
 
 export async function generateBookCoverSticker(opts: BookStickerOptions): Promise<Buffer> {
-  const cacheDir = path.resolve(process.cwd(), "public", "stickers", "covers");
-  if (!fs.existsSync(cacheDir)) {
-    fs.mkdirSync(cacheDir, { recursive: true });
-  }
+  const cacheDir = path.join(os.tmpdir(), "rtc_stickers");
+  try {
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+  } catch (e) {}
 
   const cacheFile = path.join(cacheDir, `${opts.bookId}.webp`);
-  if (fs.existsSync(cacheFile)) {
-    return fs.readFileSync(cacheFile);
-  }
+  try {
+    if (fs.existsSync(cacheFile)) {
+      return fs.readFileSync(cacheFile);
+    }
+  } catch (e) {}
 
   const width = 260;
   const height = 370;
@@ -28,16 +33,16 @@ export async function generateBookCoverSticker(opts: BookStickerOptions): Promis
 
   if (opts.coverUrl && opts.coverUrl.startsWith("http")) {
     try {
-      const tempPath = path.join(cacheDir, `temp_${opts.bookId}.jpg`);
-      const { spawnSync } = await import("child_process");
-      const res = spawnSync("curl.exe", ["-s", "-L", "-o", tempPath, opts.coverUrl], { shell: false });
-      if (res.status === 0 && fs.existsSync(tempPath) && fs.statSync(tempPath).size > 500) {
-        coverImageBuffer = fs.readFileSync(tempPath);
-        fs.unlinkSync(tempPath);
-        console.log(`📸 Successfully loaded real book cover photo for ${opts.title} (${coverImageBuffer.length} bytes)`);
+      const res = await fetch(opts.coverUrl);
+      if (res.ok) {
+        const arrayBuf = await res.arrayBuffer();
+        if (arrayBuf.byteLength > 500) {
+          coverImageBuffer = Buffer.from(arrayBuf);
+          console.log(`📸 Successfully loaded book cover for ${opts.title} (${coverImageBuffer.length} bytes)`);
+        }
       }
     } catch (e) {
-      console.warn("Could not load cover photo, using stylized vector fallback for:", opts.title, e);
+      console.warn("Could not fetch cover photo, using stylized vector fallback for:", opts.title, e);
     }
   }
 
@@ -129,7 +134,9 @@ export async function generateBookCoverSticker(opts: BookStickerOptions): Promis
     .toBuffer();
 
   if (isRealPhoto) {
-    fs.writeFileSync(cacheFile, finalSticker);
+    try {
+      fs.writeFileSync(cacheFile, finalSticker);
+    } catch (e) {}
   }
   return finalSticker;
 }
