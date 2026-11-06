@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { validateTelegramInitData } from "@/lib/telegram/auth";
+import { evaluateUserStreak } from "@/lib/streak";
 
 export const dynamic = "force-dynamic";
 
@@ -122,6 +123,18 @@ export async function GET(req: Request) {
       createdAt: s.createdAt.toISOString(),
     }));
 
+    // 5. Evaluate live streak decay in user timezone (Option A: Strict Daily Habit)
+    const userTz = clientTimezone || user.timezone || "UTC";
+    const streakEval = evaluateUserStreak(user.lastReadAt, user.streakDays, userTz);
+
+    // If streak has expired (missed >= 2 days) and DB still has non-zero streak, persist decay
+    if (streakEval.dayDiff >= 2 && user.streakDays > 0) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { streakDays: 0 },
+      });
+    }
+
     return NextResponse.json({
       user: {
         id: user.id,
@@ -130,7 +143,9 @@ export async function GET(req: Request) {
         username: user.username,
         dailyTarget: user.dailyTarget,
         reminderTime: user.reminderTime,
-        streakDays: user.streakDays,
+        streakDays: streakEval.effectiveStreak,
+        flameState: streakEval.flameState,
+        hasReadToday: streakEval.hasReadToday,
         lastReadAt: user.lastReadAt?.toISOString() || null,
       },
       activeBook,

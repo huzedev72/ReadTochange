@@ -62,6 +62,8 @@ export interface SyncResponse {
     dailyTarget: number;
     reminderTime: string;
     streakDays: number;
+    flameState?: "idle" | "at_risk" | "lost";
+    hasReadToday?: boolean;
     lastReadAt: string | null;
   };
   activeBook: any | null;

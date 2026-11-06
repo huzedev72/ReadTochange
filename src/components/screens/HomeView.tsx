@@ -3,7 +3,7 @@ import { Book, ReadingSession } from "@/data/mockData";
 import { Logo } from "@/components/ui/Logo";
 import { Mascot } from "@/components/ui/Mascot";
 import { BookCover } from "@/components/ui/BookCover";
-import { StreakFlame } from "@/components/ui/StreakFlame";
+import { StreakFlame, FlameState } from "@/components/ui/StreakFlame";
 import { Menu, Bell, ArrowUpRight } from "lucide-react";
 
 interface HomeViewProps {
@@ -11,6 +11,7 @@ interface HomeViewProps {
   dailyTargetMinutes: number;
   daysReadThisWeek: number;
   streakDays?: number;
+  flameState?: FlameState;
   primaryGoalLabel?: string;
   lastActionItem: string;
   onLogSession: () => void;
@@ -27,6 +28,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   dailyTargetMinutes,
   daysReadThisWeek,
   streakDays = 0,
+  flameState = "idle",
   primaryGoalLabel = "Discipline",
   lastActionItem,
   onLogSession,
@@ -60,7 +62,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             className="px-2.5 h-11 rounded-full bg-white/70 hover:bg-white/90 border border-white flex items-center gap-1.5 text-[#0E0E0E] active:scale-95 transition-all shadow-sm cursor-pointer"
             aria-label="Reading streak"
           >
-            <StreakFlame days={streakDays} size="sm" showBadge={false} ground="sun" interactive={false} />
+            <StreakFlame days={streakDays} state={flameState} size="sm" showBadge={false} ground="sun" interactive={false} />
             <span className="font-poppins font-black text-sm">{streakDays}</span>
           </button>
         </header>
@@ -200,7 +202,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           className="px-2.5 h-11 rounded-full bg-white/70 hover:bg-white/90 border border-white flex items-center gap-1.5 text-[#0E0E0E] active:scale-95 transition-all shadow-sm cursor-pointer"
           aria-label="Reading streak"
         >
-          <StreakFlame days={streakDays} size="sm" showBadge={false} ground="sun" interactive={false} />
+          <StreakFlame days={streakDays} state={flameState} size="sm" showBadge={false} ground="sun" interactive={false} />
           <span className="font-poppins font-black text-sm">{streakDays}</span>
         </button>
       </header>

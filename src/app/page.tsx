@@ -14,6 +14,7 @@ import { BookDetailsSheet } from "@/components/screens/BookDetailsSheet";
 import { WhyThisBookSheet } from "@/components/screens/WhyThisBookSheet";
 import { OnboardingView } from "@/components/screens/OnboardingView";
 import { StreakModal } from "@/components/screens/StreakModal";
+import { FlameState } from "@/components/ui/StreakFlame";
 import { GoalPickerModal } from "@/components/screens/GoalPickerModal";
 import { TrackOwnBookModal } from "@/components/screens/TrackOwnBookModal";
 import { FocusTimerModal } from "@/components/screens/FocusTimerModal";
@@ -49,6 +50,7 @@ export default function App() {
   const [finishedBooks, setFinishedBooks] = useState<Book[]>([]);
   const [selectedGoalIds, setSelectedGoalIds] = useState<string[]>([]);
   const [streakDays, setStreakDays] = useState<number>(0);
+  const [flameState, setFlameState] = useState<FlameState>("idle");
   const [completedActionIds, setCompletedActionIds] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -122,6 +124,13 @@ export default function App() {
             setDailyTarget(sync.user.dailyTarget ?? 15);
             setReminderTime(sync.user.reminderTime ?? "20:30");
             setStreakDays(sync.user.streakDays ?? 0);
+            if (sync.user.flameState) {
+              setFlameState(sync.user.flameState);
+            } else if ((sync.user.streakDays ?? 0) <= 0) {
+              setFlameState("lost");
+            } else {
+              setFlameState("idle");
+            }
           }
 
           if (sync.activeBook) {
@@ -492,7 +501,8 @@ export default function App() {
         setFinishedCelebrationBook(activeBook);
       }
 
-      setStreakDays((prev) => prev + 1);
+      setStreakDays((prev) => (prev <= 0 ? 1 : prev + 1));
+      setFlameState("ignite");
       setIsLoggingSession(false);
       setCurrentTab("home");
 
@@ -508,6 +518,11 @@ export default function App() {
 
       if (res && res.success && typeof res.streakDays === "number") {
         setStreakDays(res.streakDays);
+        if (res.isIgnite) {
+          setFlameState("ignite");
+        } else {
+          setFlameState("idle");
+        }
       }
     } else {
       setIsLoggingSession(false);
@@ -582,6 +597,7 @@ export default function App() {
                 dailyTargetMinutes={dailyTarget}
                 daysReadThisWeek={Math.min(7, streakDays)}
                 streakDays={streakDays}
+                flameState={flameState}
                 primaryGoalLabel={primaryGoalLabel}
                 lastActionItem={lastActionItem}
                 onLogSession={() => {

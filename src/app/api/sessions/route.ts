@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { validateTelegramInitData } from "@/lib/telegram/auth";
+import { evaluateUserStreak } from "@/lib/streak";
 
 export const dynamic = "force-dynamic";
 
@@ -111,33 +112,26 @@ export async function POST(req: Request) {
       },
     });
 
-    // 4. Calculate reading streak
+    // 4. Calculate reading streak with Option A (Strict Habit in user's timezone)
     const now = new Date();
-    let newStreak = user.streakDays;
+    const userTz = user.timezone || "UTC";
+    const streakEval = evaluateUserStreak(user.lastReadAt, user.streakDays, userTz, now);
 
-    if (!user.lastReadAt) {
-      newStreak = 1;
+    let newStreak = 1;
+    let isIgnite = false;
+
+    if (streakEval.hasReadToday) {
+      // Already read today: streak remains at today's achieved count
+      newStreak = Math.max(1, user.streakDays);
+      isIgnite = false;
+    } else if (streakEval.dayDiff === 1) {
+      // Read yesterday: consecutive day reading! Streak increments
+      newStreak = Math.max(1, user.streakDays) + 1;
+      isIgnite = true;
     } else {
-      const msDiff = now.getTime() - user.lastReadAt.getTime();
-      const hoursDiff = msDiff / (1000 * 60 * 60);
-
-      // Check calendar day difference
-      const lastDate = new Date(user.lastReadAt);
-      const isSameDay =
-        lastDate.getUTCFullYear() === now.getUTCFullYear() &&
-        lastDate.getUTCMonth() === now.getUTCMonth() &&
-        lastDate.getUTCDate() === now.getUTCDate();
-
-      if (isSameDay) {
-        // Already read today, streak remains the same
-        newStreak = user.streakDays;
-      } else if (hoursDiff <= 48) {
-        // Read yesterday / within 48h grace period: streak increments
-        newStreak = user.streakDays + 1;
-      } else {
-        // Missed more than a day: restart streak at 1
-        newStreak = 1;
-      }
+      // Missed 2+ days or first time reading: fresh restart at Day 1
+      newStreak = 1;
+      isIgnite = true;
     }
 
     let nextActiveBookId = user.activeBookId;
@@ -185,6 +179,8 @@ export async function POST(req: Request) {
           }
         : null,
       streakDays: updatedUser.streakDays,
+      isIgnite,
+      flameState: "idle",
       currentPage: updatedUserBook.currentPage,
       isFinished,
     });
